@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Unit {
+  id                 BigInt    @id @default(autoincrement())
+  name               String
+  registrationNumber String?   @map("registration_number")
+  registrationDate   DateTime? @map("registration_date")
+  address            String?
+  rt                 String?
+  rw                 String?
+  village            String?
+  district           String?
+  city               String?
+  populationCount    Int?      @default(0) @map("population_count")
+  audCount           Int?      @default(0) @map("aud_count")
+  classroomCount     Int?      @default(0) @map("classroom_count")
+  classroomCost      BigInt?   @default(0) @map("classroom_cost")
+  classroomDate      DateTime? @map("classroom_date")
+
+  staffs       Staff[]
+  students     Students[]
+  dailyReports DailyReport[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("units")
+}
+
+model Staff {
+  id       BigInt  @id @default(autoincrement())
+  unitId   BigInt  @map("unit_id")
+  name     String
+  role     String
+  status   String?
+  isActive Boolean @default(true) @map("is_active")
+
+  unit      Unit                 @relation(fields: [unitId], references: [id])
+  schedules DailyStaffSchedule[]
+  homeworks StudentHomework[]
+  reports   DailyReport[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("staffs")
+}
+
+model Students {
+  id             BigInt  @id @default(autoincrement())
+  unitId         BigInt  @map("unit_id")
+  parentName     String? @map("parent_name")
+  studentName    String  @map("student_name")
+  stageType      String? @map("stage_type") // P, L, K
+  stageName      String? @map("stage_name")
+  program        String?
+  monthlyFee     Int?    @default(0) @map("monthly_fee")
+  attendanceTotal Int?    @default(0) @map("attendance_total")
+  progressCode   String? @map("progress_code")
+  status         String  @default("active")
+
+  unit      Unit                      @relation(fields: [unitId], references: [id])
+  progress  StudentLearningProgress[]
+  homeworks StudentHomework[]
+  services  DailyStudentService[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("students")
+}
+
+model LearningLevel {
+  id          BigInt @id @default(autoincrement())
+  code        String @unique
+  name        String
+  orderNumber Int    @map("order_number")
+
+  modules LearningModule[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("learning_levels")
+}
+
+model LearningCategory {
+  id   BigInt @id @default(autoincrement())
+  code String @unique
+  name String
+
+  modules       LearningModule[]
+  progress      StudentLearningProgress[]
+  homeworkItems StudentHomeworkItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("learning_categories")
+}
+
+model LearningModule {
+  id          BigInt @id @default(autoincrement())
+  levelId     BigInt @map("level_id")
+  categoryId  BigInt @map("category_id")
+  code        String
+  orderNumber Int    @map("order_number")
+
+  level    LearningLevel    @relation(fields: [levelId], references: [id])
+  category LearningCategory @relation(fields: [categoryId], references: [id])
+
+  currentProgress StudentLearningProgress[] @relation("CurrentModule")
+  nextProgress    StudentLearningProgress[] @relation("NextModule")
+  homeworkItems   StudentHomeworkItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([levelId, categoryId, code])
+  @@map("learning_modules")
+}
+
+model StudentLearningProgress {
+  id              BigInt  @id @default(autoincrement())
+  studentId       BigInt  @map("student_id")
+  categoryId      BigInt  @map("category_id")
+  currentModuleId BigInt? @map("current_module_id")
+  nextModuleId    BigInt? @map("next_module_id")
+  progressStatus  String  @default("in_progress") @map("progress_status")
+  scheduleDay     String? @map("schedule_day")
+  note            String?
+
+  student       Students          @relation(fields: [studentId], references: [id])
+  category      LearningCategory @relation(fields: [categoryId], references: [id])
+  currentModule LearningModule?  @relation("CurrentModule", fields: [currentModuleId], references: [id])
+  nextModule    LearningModule?  @relation("NextModule", fields: [nextModuleId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([studentId, categoryId])
+  @@map("student_learning_progress")
+}
+
+model StudentHomework {
+  id           BigInt    @id @default(autoincrement())
+  studentId    BigInt    @map("student_id")
+  assignedDate DateTime  @default(now()) @map("assigned_date")
+  dueDate      DateTime? @map("due_date")
+  status       String    @default("assigned")
+  note         String?
+  createdBy    BigInt?   @map("created_by")
+
+  student Students               @relation(fields: [studentId], references: [id])
+  creator Staff?                @relation(fields: [createdBy], references: [id])
+  items   StudentHomeworkItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("student_homeworks")
+}
+
+model StudentHomeworkItem {
+  id          BigInt  @id @default(autoincrement())
+  homeworkId  BigInt  @map("homework_id")
+  categoryId  BigInt  @map("category_id")
+  moduleId    BigInt? @map("module_id")
+  instruction String?
+  status      String  @default("assigned")
+  score       Int?
+  note        String?
+
+  homework StudentHomework  @relation(fields: [homeworkId], references: [id])
+  category LearningCategory @relation(fields: [categoryId], references: [id])
+  module   LearningModule?  @relation(fields: [moduleId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([homeworkId, categoryId, moduleId])
+  @@map("student_homework_items")
+}
+
+model DailyReport {
+  id          BigInt   @id @default(autoincrement())
+  unitId      BigInt   @map("unit_id")
+  reportDate  DateTime @map("report_date")
+  workDayCode String?  @map("work_day_code")
+  kopName     String?  @map("kop_name")
+  status      String   @default("draft")
+  createdBy   BigInt?  @map("created_by")
+
+  unit      Unit                  @relation(fields: [unitId], references: [id])
+  creator   Staff?                @relation(fields: [createdBy], references: [id])
+  schedules DailyStaffSchedule[]
+  services  DailyStudentService[]
+  failures  DailyServiceFailure[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("daily_reports")
+}
+
+model DailyStaffSchedule {
+  id            BigInt  @id @default(autoincrement())
+  dailyReportId BigInt  @map("daily_report_id")
+  staffId       BigInt  @map("staff_id")
+  startTime     String  @map("start_time")
+  endTime       String  @map("end_time")
+  activityType  String? @map("activity_type")
+  description   String?
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id])
+  staff       Staff       @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("daily_staff_schedules")
+}
+
+model DailyStudentService {
+  id               BigInt  @id @default(autoincrement())
+  dailyReportId    BigInt  @map("daily_report_id")
+  staffId          BigInt  @map("staff_id")
+  studentId        BigInt  @map("student_id")
+  startTime        String? @map("start_time")
+  endTime          String? @map("end_time")
+  serviceType      String  @map("service_type")
+  attendanceStatus String  @default("present") @map("attendance_status")
+  resultStatus     String  @default("success") @map("result_status")
+  note             String?
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id])
+  student     Students     @relation(fields: [studentId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("daily_student_services")
+}
+
+model DailyServiceFailure {
+  id              BigInt  @id @default(autoincrement())
+  dailyReportId   BigInt  @map("daily_report_id")
+  studentId       BigInt? @map("student_id")
+  serviceType     String? @map("service_type")
+  failureCategory String? @map("failure_category")
+  failureReason   String? @map("failure_reason")
+  actionTaken     String? @map("action_taken")
+  handledBy       String? @map("handled_by")
+
+  dailyReport DailyReport @relation(fields: [dailyReportId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("daily_service_failures")
+}
